@@ -13,10 +13,29 @@ import java.util.concurrent.ConcurrentHashMap;
  * For now, this is a stub catalog that must be populated with tables by a
  * user program before it can be used -- eventually, this should be converted
  * to a catalog that reads a catalog table from disk.
- * 
+ *
  * @Threadsafe
  */
 public class Catalog {
+    public static class Table {
+        public DbFile dbFile;
+        public String name;
+        public String pk;
+
+        public Table(DbFile dbFile, String name, String pk) {
+            this.dbFile = dbFile;
+            this.name = name;
+            this.pk = pk;
+        }
+    }
+
+    private HashMap<String, Integer> name2IdMap = new HashMap<String, Integer>();
+
+//    private HashMap<Integer, DbFile> dbFileMap = new HashMap<Integer, DbFile>();
+
+    private HashMap<Integer, Table> tableMap = new HashMap<Integer, Table>();
+
+    private ArrayList<Integer> tableIds = new ArrayList<Integer>();
 
     /**
      * Constructor.
@@ -29,14 +48,19 @@ public class Catalog {
     /**
      * Add a new table to the catalog.
      * This table's contents are stored in the specified DbFile.
-     * @param file the contents of the table to add;  file.getId() is the identfier of
-     *    this file/tupledesc param for the calls getTupleDesc and getFile
-     * @param name the name of the table -- may be an empty string.  May not be null.  If a name
-     * conflict exists, use the last table to be added as the table for a given name.
+     *
+     * @param file      the contents of the table to add;  file.getId() is the identifier of
+     *                  this file/tupledesc param for the calls getTupleDesc and getFile
+     * @param name      the name of the table -- may be an empty string.  May not be null.  If a name
+     *                  conflict exists, use the last table to be added as the table for a given name.
      * @param pkeyField the name of the primary key field
      */
     public void addTable(DbFile file, String name, String pkeyField) {
         // some code goes here
+        Table table = new Table(file, name, pkeyField);
+        name2IdMap.put(name, file.getId());
+        tableMap.put(file.getId(), table);
+        tableIds.add(file.getId());
     }
 
     public void addTable(DbFile file, String name) {
@@ -60,7 +84,11 @@ public class Catalog {
      */
     public int getTableId(String name) throws NoSuchElementException {
         // some code goes here
-        return 0;
+        if (name2IdMap.containsKey(name)) {
+            return name2IdMap.get(name);
+        }
+        throw new NoSuchElementException();
+//        return 0;
     }
 
     /**
@@ -71,7 +99,11 @@ public class Catalog {
      */
     public TupleDesc getTupleDesc(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+        if (tableMap.containsKey(tableid)) {
+            return tableMap.get(tableid).dbFile.getTupleDesc();
+        }
+        throw new NoSuchElementException();
+//        return null;
     }
 
     /**
@@ -82,27 +114,41 @@ public class Catalog {
      */
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+        if (tableMap.containsKey(tableid)) {
+            return tableMap.get(tableid).dbFile;
+        }
+        throw new NoSuchElementException();
+//        return null;
     }
 
     public String getPrimaryKey(int tableid) {
         // some code goes here
+        if (tableMap.containsKey(tableid)) {
+            return tableMap.get(tableid).pk;
+        }
         return null;
     }
 
     public Iterator<Integer> tableIdIterator() {
         // some code goes here
-        return null;
+        return tableIds.iterator();
+//        return null;
     }
 
-    public String getTableName(int id) {
+    public String getTableName(int tableid) {
         // some code goes here
+        if (tableMap.containsKey(tableid)) {
+            return tableMap.get(tableid).name;
+        }
         return null;
     }
     
     /** Delete all tables from the catalog */
     public void clear() {
         // some code goes here
+        name2IdMap = new HashMap<String, Integer>();
+        tableMap = new HashMap<Integer, Table>();
+        tableIds = new ArrayList<Integer>();
     }
     
     /**
