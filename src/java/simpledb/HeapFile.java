@@ -78,7 +78,8 @@ public class HeapFile implements DbFile, DbFileIterator {
             DataInputStream in = new DataInputStream(new FileInputStream(file));
             int pgSize = Database.getBufferPool().getPageSize();
             byte[] data = new byte[pgSize];
-            in.read(data, pgSize * pgNo, pgSize);
+            in.skipBytes(pgSize * pgNo);
+            in.read(data, 0, pgSize);
             in.close();
             return new HeapPage(new HeapPageId(pid.getTableId(), pgNo), data);
         } catch (IOException e) {
@@ -134,7 +135,6 @@ public class HeapFile implements DbFile, DbFileIterator {
 
     public void open() throws DbException, TransactionAbortedException {
         curPageId = new HeapPageId(this.getId(), curPgNo);
-        curPgNo++;
         Page page = Database.getBufferPool().getPage(null, curPageId, null);
         try {
             curPage = new HeapPage(curPageId, page.getPageData());
@@ -158,8 +158,8 @@ public class HeapFile implements DbFile, DbFileIterator {
         if (curIt.hasNext()) {
             return curIt.next();
         } else {
-            curPageId = new HeapPageId(this.getId(), curPgNo);
             curPgNo++;
+            curPageId = new HeapPageId(this.getId(), curPgNo);
             Page page = Database.getBufferPool().getPage(null, curPageId, null);
             try {
                 curPage = new HeapPage(curPageId, page.getPageData());
