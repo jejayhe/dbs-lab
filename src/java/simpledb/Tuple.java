@@ -108,7 +108,7 @@ public class Tuple implements Serializable {
     public String toString() {
         // some code goes here
         StringBuilder buf = new StringBuilder();
-        for (int i=0;i<data.size();i++){
+        for (int i=0; i<data.size(); i++){
             buf.append(data.get(i));
             if (i!=data.size()-1){
                 buf.append("/t");
@@ -122,8 +122,7 @@ public class Tuple implements Serializable {
      * @return
      *        An iterator which iterates over all the fields of this tuple
      * */
-    public Iterator<Field> fields()
-    {
+    public Iterator<Field> fields() {
         // some code goes here
         return data.iterator();
 //        return null;
@@ -131,10 +130,13 @@ public class Tuple implements Serializable {
 
     /**
      * reset the TupleDesc of this tuple (only affecting the TupleDesc)
-     * */
-    public void resetTupleDesc(TupleDesc td)
-    {
+     */
+    public void resetTupleDesc(TupleDesc td) {
         // some code goes here
         _tupledescriptor_ = td;
+    }
+
+    public int getSize() {
+        return data.size();
     }
 }
