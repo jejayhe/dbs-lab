@@ -104,6 +104,9 @@ public class SeqScan implements OpIterator {
 
     public boolean hasNext() throws TransactionAbortedException, DbException {
         // some code goes here
+        if (dbFileIterator == null) {
+            return false;
+        }
         return dbFileIterator.hasNext();
 //        return false;
     }

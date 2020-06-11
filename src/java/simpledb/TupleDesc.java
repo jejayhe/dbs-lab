@@ -232,8 +232,10 @@ public class TupleDesc implements Serializable {
             switch (columns.get(i).fieldType){
                 case INT_TYPE:
                     acc += 17*i*30;
+                    break;
                 case STRING_TYPE:
                     acc += 101*i*30;
+                    break;
             }
         }
         return acc;

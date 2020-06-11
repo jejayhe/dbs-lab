@@ -26,7 +26,7 @@ public class Debug {
           DEBUG_LEVEL = Integer.parseInt(debug);
       }
   }
-
+// change to -1 for debugging purpose
   private static final int DEFAULT_LEVEL = 0;
 
   /** Log message if the log level >= level. Uses printf. */
