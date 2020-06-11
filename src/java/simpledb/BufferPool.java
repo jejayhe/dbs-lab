@@ -2,6 +2,7 @@ package simpledb;
 
 import java.io.*;
 
+import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -12,18 +13,35 @@ import java.util.concurrent.ConcurrentHashMap;
  * The BufferPool is also responsible for locking;  when a transaction fetches
  * a page, BufferPool checks that the transaction has the appropriate
  * locks to read/write the page.
- * 
+ *
  * @Threadsafe, all fields are final
  */
 public class BufferPool {
-    /** Bytes per page, including header. */
+
+    public static class BufferPage {
+        public Page page;
+        public Permissions perm;
+
+        public BufferPage(Page page, Permissions perm) {
+            this.page = page;
+            this.perm = perm;
+        }
+    }
+
+    private HashMap<PageId, BufferPage> bPageMap = new HashMap<PageId, BufferPage>();
+    private int bufSize;
+    /**
+     * Bytes per page, including header.
+     */
     private static final int DEFAULT_PAGE_SIZE = 4096;
 
     private static int pageSize = DEFAULT_PAGE_SIZE;
-    
-    /** Default number of pages passed to the constructor. This is used by
-    other classes. BufferPool should use the numPages argument to the
-    constructor instead. */
+
+    /**
+     * Default number of pages passed to the constructor. This is used by
+     * other classes. BufferPool should use the numPages argument to the
+     * constructor instead.
+     */
     public static final int DEFAULT_PAGES = 50;
 
     /**
@@ -33,6 +51,7 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
         // some code goes here
+        bufSize = numPages;
     }
     
     public static int getPageSize() {
@@ -67,7 +86,19 @@ public class BufferPool {
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-        return null;
+        if (bPageMap.containsKey(pid)) {
+            return bPageMap.get(pid).page;
+        } else {
+            if (bPageMap.size() < bufSize) {
+                DbFile dbfile = Database.getCatalog().getDatabaseFile(pid.getTableId());
+                BufferPage bPage = new BufferPage(dbfile.readPage(pid), perm);
+                bPageMap.put(pid, bPage);
+                return bPage.page;
+            } else {
+                throw new DbException("");
+            }
+        }
+//        return null;
     }
 
     /**
