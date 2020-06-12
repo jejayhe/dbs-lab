@@ -115,9 +115,6 @@ public class IntHistogram {
         return res / total;
     }
 
-    public double computeEqualSelectivity(double v) {
-        return 0;
-    }
 
     /**
      * Estimate the selectivity of a particular predicate and operand on this table.
@@ -134,7 +131,11 @@ public class IntHistogram {
         switch (op) {
             case EQUALS:
                 if (width == 0) {
-
+                    if (v == this.min) {
+                        res = 1;
+                    } else {
+                        res = 0;
+                    }
                 } else {
                     res = data.get(computeBucket(v)) / width / total;
                 }
@@ -155,7 +156,15 @@ public class IntHistogram {
                 res = 1;
                 break;
             case NOT_EQUALS:
-                res = computeGreaterThanSelectivity(v) + computeLessThanSelectivity(v);
+                if (width == 0) {
+                    if (v == this.min) {
+                        res = 0;
+                    } else {
+                        res = 1;
+                    }
+                } else {
+                    res = 1 - data.get(computeBucket(v)) / width / total;
+                }
                 break;
         }
         // some code goes here
