@@ -41,7 +41,7 @@ public class IntHistogram {
         }
         if (max == min) {
             this.buckets = 1;
-            width = 1;
+            width = 0;
         } else {
             width = (max - min) * 1.0 / this.buckets;
         }
@@ -132,24 +132,52 @@ public class IntHistogram {
             case EQUALS:
                 if (width == 0) {
                     if (v == this.min) {
-                        res = 1;
+                        return 1;
                     } else {
-                        res = 0;
+                        return 0;
                     }
                 } else {
                     res = data.get(computeBucket(v)) / width / total;
                 }
                 break;
             case GREATER_THAN:
+                if (width == 0) {
+                    if (v < this.min) {
+                        return 1;
+                    } else {
+                        return 0;
+                    }
+                }
                 res = computeGreaterThanSelectivity(v);
                 break;
             case GREATER_THAN_OR_EQ:
+                if (width == 0) {
+                    if (v <= this.min) {
+                        return 1;
+                    } else {
+                        return 0;
+                    }
+                }
                 res = computeGreaterThanSelectivity(v - 0.5);
                 break;
             case LESS_THAN:
+                if (width == 0) {
+                    if (v > this.min) {
+                        return 1;
+                    } else {
+                        return 0;
+                    }
+                }
                 res = computeLessThanSelectivity(v);
                 break;
             case LESS_THAN_OR_EQ:
+                if (width == 0) {
+                    if (v >= this.min) {
+                        return 1;
+                    } else {
+                        return 0;
+                    }
+                }
                 res = computeLessThanSelectivity(v + 0.5);
                 break;
             case LIKE:
