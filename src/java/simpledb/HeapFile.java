@@ -30,7 +30,7 @@ public class HeapFile extends AbstractDbFileIterator implements DbFile, DbFileIt
         heapFileId = f.getAbsoluteFile().hashCode();
         file = f;
         tupleDesc = td;
-        int pgSize = Database.getBufferPool().getPageSize();
+        int pgSize = BufferPool.getPageSize();
         numPages = (int) file.length() / pgSize;
 //        Debug.log("when creating heapfile, numpages is :" + numPages);
     }
@@ -101,6 +101,14 @@ public class HeapFile extends AbstractDbFileIterator implements DbFile, DbFileIt
     public void writePage(Page page) throws IOException {
         // some code goes here
         // not necessary for lab1
+        Debug.log("write to page " + ((HeapPageId) page.getId()).toString());
+        RandomAccessFile rf = new RandomAccessFile(file.getAbsolutePath(), "rw");
+        int pgSize = BufferPool.getPageSize();
+        rf.seek(page.getId().getPageNumber() * pgSize);
+        byte[] data = page.getPageData();
+        rf.write(data, 0, pgSize);
+        rf.close();
+        Debug.log("write to page finished");
     }
 
     /**
@@ -108,7 +116,7 @@ public class HeapFile extends AbstractDbFileIterator implements DbFile, DbFileIt
      */
     public int numPages() {
         // some code goes here
-        int pgSize = Database.getBufferPool().getPageSize();
+        int pgSize = BufferPool.getPageSize();
         numPages = (int) file.length() / pgSize;
         return numPages;
     }
@@ -117,7 +125,7 @@ public class HeapFile extends AbstractDbFileIterator implements DbFile, DbFileIt
     public ArrayList<Page> insertTuple(TransactionId tid, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
         // some code goes here
-        for (int pgNo = 0; pgNo < numPages; pgNo++) {
+        for (int pgNo = 0; pgNo < numPages(); pgNo++) {
             PageId pid = new HeapPageId(this.getId(), pgNo);
             HeapPage hpage = (HeapPage) Database.getBufferPool().getPage(null, pid, null);
             try {
@@ -129,7 +137,7 @@ public class HeapFile extends AbstractDbFileIterator implements DbFile, DbFileIt
             }
         }
         Debug.log("pages are full; create a blank page");
-        int pgNo = numPages;
+        int pgNo = numPages();
         BufferedOutputStream bw = new BufferedOutputStream(new FileOutputStream(getFile(), true));
         byte[] emptyData = HeapPage.createEmptyPageData();
         bw.write(emptyData);
@@ -184,7 +192,7 @@ public class HeapFile extends AbstractDbFileIterator implements DbFile, DbFileIt
 
     public Tuple readNext() throws DbException, TransactionAbortedException {
         if (curIt == null) {
-            throw new NoSuchElementException();
+            return null;
         }
         if (curIt.hasNext()) {
             Debug.log("calling curIt.next()");
@@ -192,7 +200,7 @@ public class HeapFile extends AbstractDbFileIterator implements DbFile, DbFileIt
         } else {
             Debug.log("curPgNo ++ ");
             curPgNo++;
-            if (curPgNo >= numPages) {
+            if (curPgNo >= numPages()) {
                 return null;
             }
             curPageId = new HeapPageId(this.getId(), curPgNo);
