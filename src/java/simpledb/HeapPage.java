@@ -4,25 +4,24 @@ import java.util.*;
 import java.io.*;
 
 /**
- * Each instance of HeapPage stores data for one page of HeapFiles and 
+ * Each instance of HeapPage stores data for one page of HeapFiles and
  * implements the Page interface that is used by BufferPool.
  *
  * @see HeapFile
  * @see BufferPool
- *
  */
-public class HeapPage implements Page {
+public class HeapPage implements Page, Iterator<Tuple> {
 
     final HeapPageId pid;
     final TupleDesc td;
-    final byte header[];
-    final Tuple tuples[];
+    final byte[] header;
+    final Tuple[] tuples;
     final int numSlots;
 
     byte[] oldData;
     private final Byte oldDataLock = new Byte((byte) 0);
 
-    private LinkedList<Tuple> tupleList = new LinkedList<Tuple>();
+    //    private LinkedList<Tuple> tupleList = new LinkedList<Tuple>();
     private boolean dirty = false;
     private TransactionId dirtyTid;
 
@@ -52,16 +51,16 @@ public class HeapPage implements Page {
         header = new byte[getHeaderSize()];
         for (int i=0; i<header.length; i++)
             header[i] = dis.readByte();
-        
+
         tuples = new Tuple[numSlots];
         try {
             // allocate and read the actual records of this page
             for (int i = 0; i < tuples.length; i++) {
                 Tuple tmp = readNextTuple(dis, i);
                 tuples[i] = tmp;
-                if (tmp != null) {
-                    tupleList.add(tmp);
-                }
+//                if (tmp != null) {
+//                    tupleList.add(tmp);
+//                }
 
             }
         } catch (NoSuchElementException e) {
@@ -107,17 +106,18 @@ public class HeapPage implements Page {
 //        return 0;
 
     }
-    
-    /** Return a view of this page before it was modified
-        -- used by recovery */
-    public HeapPage getBeforeImage(){
+
+    /**
+     * Return a view of this page before it was modified
+     * -- used by recovery
+     */
+    public HeapPage getBeforeImage() {
         try {
             byte[] oldDataRef = null;
-            synchronized(oldDataLock)
-            {
+            synchronized (oldDataLock) {
                 oldDataRef = oldData;
             }
-            return new HeapPage(pid,oldDataRef);
+            return new HeapPage(pid, oldDataRef);
         } catch (IOException e) {
             e.printStackTrace();
             //should never happen -- we parsed it OK before!
@@ -125,11 +125,10 @@ public class HeapPage implements Page {
         }
         return null;
     }
-    
+
     public void setBeforeImage() {
-        synchronized(oldDataLock)
-        {
-        oldData = getPageData().clone();
+        synchronized (oldDataLock) {
+            oldData = getPageData().clone();
         }
     }
 
@@ -223,7 +222,7 @@ public class HeapPage implements Page {
                 Field f = tuples[i].getField(j);
                 try {
                     f.serialize(dos);
-                
+
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -272,6 +271,7 @@ public class HeapPage implements Page {
     public void deleteTuple(Tuple t) throws DbException {
         // some code goes here
         // not necessary for lab1
+        Debug.log("deleteTuple");
         PageId pid = t.getRecordId().getPageId();
         int tupleNo = t.getRecordId().getTupleNumber();
         if (!pid.equals(this.pid) || !isSlotUsed(tupleNo)) {
@@ -280,7 +280,7 @@ public class HeapPage implements Page {
             throw new DbException("");
         }
         markSlotUsed(tupleNo, false);
-        tupleList.remove(t);
+//        tupleList.remove(t);
     }
 
     /**
@@ -301,7 +301,8 @@ public class HeapPage implements Page {
             if (!isSlotUsed(i)) {
                 t.setRecordId(new RecordId(pid, i));
                 markSlotUsed(i, true);
-                tupleList.add(t);
+                tuples[i] = t;
+//                tupleList.add(t);
 //                Debug.log("header[0] is now " + header[0] + " i is " + i + " isSlotUsed(0) :" + isSlotUsed(i));
                 return;
             } else {
@@ -379,9 +380,53 @@ public class HeapPage implements Page {
      */
     public Iterator<Tuple> iterator() {
         // some code goes here
-        return tupleList.iterator();
+//        return tupleList.iterator();
 //        return null;
+        Debug.log("pid: " + pid.toString() + "resetting iterator............");
+        next = null;
+        cur_i = -1;
+        return this;
     }
 
+
+    private int cur_i = -1;
+
+    public boolean hasNext() {
+        Debug.log("[HeapPage.hasNext] next = " + next + " cur_i = " + cur_i);
+        if (next == null) next = readNext();
+        return next != null;
+    }
+
+    public Tuple next() {
+        Debug.log("[HeapPage.next] next = " + next + " cur_i = " + cur_i);
+        if (next == null) {
+            next = readNext();
+            if (next == null) throw new NoSuchElementException();
+        }
+
+        Tuple result = next;
+        next = null;
+        return result;
+    }
+
+    public Tuple readNext() {
+        int i = cur_i + 1;
+//        cur_i++;
+        while (i < numSlots) {
+            if (isSlotUsed(i)) {
+                Debug.log("succefully read slot " + i);
+                cur_i = i;
+                return tuples[i];
+            }
+            i++;
+        }
+        return null;
+    }
+
+    private Tuple next = null;
+
+    public String sprint() {
+        return "[HeapPage.sprint] next = " + next + " cur_i = " + cur_i;
+    }
 }
 

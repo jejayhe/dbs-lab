@@ -13,7 +13,7 @@ import java.util.*;
  * @author Sam Madden
  * @see simpledb.HeapPage#HeapPage
  */
-public class HeapFile implements DbFile, DbFileIterator {
+public class HeapFile extends AbstractDbFileIterator implements DbFile, DbFileIterator {
     private int heapFileId;
     private File file;
     private TupleDesc tupleDesc;
@@ -182,34 +182,30 @@ public class HeapFile implements DbFile, DbFileIterator {
         curIt = curPage.iterator();
     }
 
-    public boolean hasNext() throws DbException, TransactionAbortedException {
-        if (curIt == null) {
-            return false;
-        }
-        return curIt.hasNext() || curPgNo < numPages - 1;
-    }
-
-    public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
+    public Tuple readNext() throws DbException, TransactionAbortedException {
         if (curIt == null) {
             throw new NoSuchElementException();
         }
         if (curIt.hasNext()) {
-//            Debug.log("calling curIt.next()");
+            Debug.log("calling curIt.next()");
             return curIt.next();
         } else {
-//            Debug.log("curPgNo ++ ");
+            Debug.log("curPgNo ++ ");
             curPgNo++;
+            if (curPgNo >= numPages) {
+                return null;
+            }
             curPageId = new HeapPageId(this.getId(), curPgNo);
             curPage = (HeapPage) Database.getBufferPool().getPage(null, curPageId, null);
             curIt = curPage.iterator();
-            return next();
+            return readNext();
         }
-//        return null;
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
         curPgNo = 0;
         open();
+        super.close();
     }
 
     public void close() {
@@ -217,6 +213,7 @@ public class HeapFile implements DbFile, DbFileIterator {
         curPage = null;
         curPageId = null;
         curIt = null;
+        super.close();
     }
 }
 
