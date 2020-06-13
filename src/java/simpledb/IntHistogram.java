@@ -8,10 +8,9 @@ import java.util.ArrayList;
 public class IntHistogram {
 
     private int buckets;
-    private double min;
-    private double max;
-    private int total = 0;
-    double width;
+    private int min;
+    private int max;
+    private int count = 0;
     ArrayList<Integer> data;
 
     /**
@@ -41,25 +40,62 @@ public class IntHistogram {
         }
         if (max == min) {
             this.buckets = 1;
-            width = 0;
-        } else {
-            width = (max - min) * 1.0 / this.buckets;
+        } else if (max - min < buckets) {
+            this.buckets = max - min;
         }
-
+        bounds = new int[this.buckets][3];
+        for (int i = 0; i < this.buckets; i++) {
+            int[] tuple = bucketBound(i);
+            bounds[i][0] = tuple[0];
+            bounds[i][1] = tuple[1];
+            bounds[i][2] = 0;
+            Debug.log("bounds[" + i + "] = " + tuple[0] + " " + tuple[1]);
+        }
     }
 
-    public int computeBucket(double v) {
-        if (this.max - this.min == 0) {
-            return 0;
+    // return leftbound, rightbound for bucket i
+    public int[] bucketBound(int i) {
+        int leftbound = min + (max - min) * i / buckets;
+        int rightbound = 0;
+        if (i == buckets - 1) {
+            rightbound = max;
+        } else {
+            if (((max - min) * (i + 1)) % buckets == 0) {
+                rightbound = min + (max - min) * (i + 1) / buckets - 1;
+            } else {
+                rightbound = min + (max - min) * (i + 1) / buckets;
+            }
         }
-        int bucketNo = (int) (Math.floor((v - this.min) * this.buckets / (this.max - this.min)));
-        if (bucketNo >= this.buckets) {
-            bucketNo = this.buckets - 1;
+        return new int[]{leftbound, rightbound};
+    }
+
+    private int[][] bounds;
+
+    // return bucket index that value v resides in
+    // return -1 if too left
+    // return this.buckets if too right
+    public int searchBucket(int v) {
+        if (v < min) {
+            return -1;
         }
-        if (bucketNo < 0) {
-            bucketNo = 0;
+        if (v > max) {
+            return this.buckets;
         }
-        return bucketNo;
+        // find first value that is less than v
+        int i = 0;
+        int j = this.buckets - 1;
+//        int mid = (i+j)/2;
+        while (i < j) {
+            int mid = (i + j) / 2;
+            if (bounds[mid][0] > v) {
+                j = mid - 1;
+            } else if (bounds[mid][1] < v) {
+                i = mid + 1;
+            } else {
+                return mid;
+            }
+        }
+        return i;
     }
 
     /**
@@ -74,47 +110,74 @@ public class IntHistogram {
 
     public void addValue(int v) {
         // some code goes here
-        total++;
-        int bucketNo = computeBucket(v);
-        data.set(bucketNo, data.get(bucketNo) + 1);
+        count++;
+        bounds[searchBucket(v)][2]++;
     }
 
-    public double computeGreaterThanSelectivity(double v) {
-        int bucketNo = computeBucket(v);
-        double leftBound = this.min + this.width * bucketNo;
-        double rightBound = this.min + this.width * (bucketNo + 1);
-        double w = rightBound - v;
-        if (w < 0) {
-            w = 0;
+    public double computeGreaterThanSelectivity(int v) {
+        if (v < min) {
+            return 1;
         }
-        if (w > this.width) {
-            w = this.width;
+        if (v >= max) {
+            return 0;
         }
-        double res = w / width * this.data.get(bucketNo);
-        for (int i = bucketNo + 1; i < this.buckets; i++) {
-            res += this.data.get(i);
+        // now that min <= v < max
+        double acc = 0;
+        // if v is right bound, sum others
+        int vBucketIndex = searchBucket(v);
+        if (bounds[vBucketIndex][1] == v) {
+            for (int i = vBucketIndex + 1; i < buckets; i++) {
+                acc += bounds[i][2];
+            }
+        } else {
+            int leftb = bounds[vBucketIndex][0];
+            int rightb = bounds[vBucketIndex][1];
+            acc += (rightb - v) * 1.0 / (rightb - leftb + 1) * bounds[vBucketIndex][2];
+            for (int i = vBucketIndex + 1; i < buckets; i++) {
+                acc += bounds[i][2];
+            }
         }
-        return res / total;
+        return acc / count;
     }
 
-    public double computeLessThanSelectivity(double v) {
-        int bucketNo = computeBucket(v);
-        double leftBound = this.min + this.width * bucketNo;
-        double rightBound = this.min + this.width * (bucketNo + 1);
-        double w = v - leftBound;
-        if (w < 0) {
-            w = 0;
+    public double computeLessThanSelectivity(int v) {
+        if (v <= min) {
+            return 0;
         }
-        if (w > this.width) {
-            w = this.width;
+        if (v > max) {
+            return 1;
         }
-        double res = w / width * this.data.get(bucketNo);
-        for (int i = bucketNo - 1; i >= 0; i--) {
-            res += this.data.get(i);
+        // now that min < v <= max
+        double acc = 0;
+        // if v is left bound, sum others
+        int vBucketIndex = searchBucket(v);
+        if (bounds[vBucketIndex][0] == v) {
+            for (int i = vBucketIndex - 1; i >= 0; i--) {
+                acc += bounds[i][2];
+            }
+        } else {
+            int leftb = bounds[vBucketIndex][0];
+            int rightb = bounds[vBucketIndex][1];
+            acc += 1.0 * (v - leftb) / (rightb - leftb + 1) * bounds[vBucketIndex][2];
+            for (int i = vBucketIndex - 1; i >= 0; i--) {
+                acc += bounds[i][2];
+            }
         }
-        return res / total;
+        return acc / count;
     }
 
+    public double computeEqualSelectivity(int v) {
+        if (v < min) {
+            return 0;
+        }
+        if (v > max) {
+            return 0;
+        }
+        int vBucketIndex = searchBucket(v);
+        int leftb = bounds[vBucketIndex][0];
+        int rightb = bounds[vBucketIndex][1];
+        return 1.0 * bounds[vBucketIndex][2] / (rightb - leftb + 1) / count;
+    }
 
     /**
      * Estimate the selectivity of a particular predicate and operand on this table.
@@ -130,19 +193,19 @@ public class IntHistogram {
         double res = 0;
         switch (op) {
             case EQUALS:
-                if (width == 0) {
-                    if (v == this.min) {
+                if (max == min) {
+                    if (v == min) {
                         return 1;
                     } else {
                         return 0;
                     }
                 } else {
-                    res = data.get(computeBucket(v)) / width / total;
+                    res = computeEqualSelectivity(v);
                 }
                 break;
             case GREATER_THAN:
-                if (width == 0) {
-                    if (v < this.min) {
+                if (max == min) {
+                    if (v < min) {
                         return 1;
                     } else {
                         return 0;
@@ -151,18 +214,18 @@ public class IntHistogram {
                 res = computeGreaterThanSelectivity(v);
                 break;
             case GREATER_THAN_OR_EQ:
-                if (width == 0) {
-                    if (v <= this.min) {
+                if (max == min) {
+                    if (v <= min) {
                         return 1;
                     } else {
                         return 0;
                     }
                 }
-                res = computeGreaterThanSelectivity(v - 0.5);
+                res = computeGreaterThanSelectivity(v - 1);
                 break;
             case LESS_THAN:
-                if (width == 0) {
-                    if (v > this.min) {
+                if (max == min) {
+                    if (v > min) {
                         return 1;
                     } else {
                         return 0;
@@ -171,27 +234,27 @@ public class IntHistogram {
                 res = computeLessThanSelectivity(v);
                 break;
             case LESS_THAN_OR_EQ:
-                if (width == 0) {
-                    if (v >= this.min) {
+                if (max == min) {
+                    if (v >= min) {
                         return 1;
                     } else {
                         return 0;
                     }
                 }
-                res = computeLessThanSelectivity(v + 0.5);
+                res = computeLessThanSelectivity(v + 1);
                 break;
             case LIKE:
                 res = 1;
                 break;
             case NOT_EQUALS:
-                if (width == 0) {
-                    if (v == this.min) {
+                if (max == min) {
+                    if (v == min) {
                         res = 0;
                     } else {
                         res = 1;
                     }
                 } else {
-                    res = 1 - data.get(computeBucket(v)) / width / total;
+                    res = 1 - computeEqualSelectivity(v);
                 }
                 break;
         }
@@ -216,6 +279,13 @@ public class IntHistogram {
      */
     public String toString() {
         // some code goes here
+
         return null;
+    }
+
+    public void print() {
+        for (int i = 0; i < buckets; i++) {
+            Debug.log("bounds[" + i + "]: " + bounds[i][0] + " " + bounds[i][1] + " " + bounds[i][2]);
+        }
     }
 }
