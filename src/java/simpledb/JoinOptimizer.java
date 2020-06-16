@@ -239,7 +239,37 @@ public class JoinOptimizer {
 
         // some code goes here
         //Replace the following
-        return joins;
+        PlanCache pc = new PlanCache();
+        int n = joins.size();
+        Set<LogicalJoinNode> ansKey = null;
+        for (int i = 1; i <= n; i++) {
+            // find all optjoin for every length i subsets
+            Set<Set<LogicalJoinNode>> lengthISubsets = enumerateSubsets(joins, i);
+            for (Set<LogicalJoinNode> lengthISubset : lengthISubsets) {
+                if (lengthISubset.size() == n) {
+                    ansKey = lengthISubset;
+                }
+                // find optjoin for this paticular node subset.
+                double bestCostSoFar = Double.MAX_VALUE;
+                CostCard bestPlan = null;
+                for (LogicalJoinNode joinToRemove : lengthISubset) {
+                    CostCard cc = computeCostAndCardOfSubplan(stats, filterSelectivities, joinToRemove,
+                            lengthISubset, bestCostSoFar, pc);
+                    if (bestPlan == null) {
+                        bestPlan = cc;
+                    } else {
+                        if (cc != null && bestPlan.cost > cc.cost) {
+                            bestPlan = cc;
+                        }
+                    }
+                }
+                if (bestPlan != null) {
+                    pc.addPlan(lengthISubset, bestPlan.cost, bestPlan.card, bestPlan.plan);
+                }
+            }
+        }
+
+        return pc.getOrder(ansKey);
     }
 
     // ===================== Private Methods =================================
