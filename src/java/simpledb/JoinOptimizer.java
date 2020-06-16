@@ -111,7 +111,8 @@ public class JoinOptimizer {
             // HINT: You may need to use the variable "j" if you implemented
             // a join algorithm that's more complicated than a basic
             // nested-loops join.
-            return -1.0;
+            return cost1 + card1 * cost2 + card1 * card2;
+//            return -1.0;
         }
     }
 
@@ -157,7 +158,24 @@ public class JoinOptimizer {
             Map<String, Integer> tableAliasToId) {
         int card = 1;
         // some code goes here
-        return card <= 0 ? 1 : card;
+        switch (joinOp) {
+            case EQUALS:
+                if (t1pkey || t2pkey) {
+                    return Math.min(card1, card2);
+                } else {
+                    return Math.max(card1, card2);
+                }
+            case LESS_THAN:
+            case LESS_THAN_OR_EQ:
+            case GREATER_THAN:
+            case GREATER_THAN_OR_EQ:
+                return card1 * card2 * 3 / 10;
+            case NOT_EQUALS:
+                return card1 * card2;
+            case LIKE:
+                return card1 * card2;
+        }
+        return 0;
     }
 
     /**
