@@ -66,16 +66,33 @@ public class TableStats {
      */
     static final int NUM_HIST_BINS = 100;
 
+    public static class Stat {
+        public Type statType;
+        public IntHistogram ihist;
+        public StringHistogram shist;
+
+        Stat(Type statType, IntHistogram ihist, StringHistogram shist) {
+            this.statType = statType;
+            this.ihist = ihist;
+            this.shist = shist;
+        }
+    }
+
+    private Stat[] statArr;
+    private TupleDesc tupleDesc;
+    private int ioCostPerPage;
+    private int numPages = 0;
+    private int ntups = 0;
+
     /**
      * Create a new TableStats object, that keeps track of statistics on each
      * column of a table
-     * 
-     * @param tableid
-     *            The table over which to compute statistics
-     * @param ioCostPerPage
-     *            The cost per page of IO. This doesn't differentiate between
-     *            sequential-scan IO and disk seeks.
+     *
+     * @param tableid       The table over which to compute statistics
+     * @param ioCostPerPage The cost per page of IO. This doesn't differentiate between
+     *                      sequential-scan IO and disk seeks.
      */
+
     public TableStats(int tableid, int ioCostPerPage) {
         // For this function, you'll have to get the
         // DbFile for the table in question,
@@ -85,23 +102,88 @@ public class TableStats {
         // necessarily have to (for example) do everything
         // in a single scan of the table.
         // some code goes here
+        this.ioCostPerPage = ioCostPerPage;
+        DbFile dbFile = Database.getCatalog().getDatabaseFile(tableid);
+        TupleDesc td = dbFile.getTupleDesc();
+        tupleDesc = td;
+        DbFileIterator it = dbFile.iterator(null);
+        int len = td.numFields();
+        int[] minArr = new int[len];
+        int[] maxArr = new int[len];
+        for (int i = 0; i < len; i++) {
+            minArr[i] = Integer.MAX_VALUE;
+            maxArr[i] = Integer.MIN_VALUE;
+        }
+        statArr = new Stat[len];
+        try {
+            it.open();
+            while (it.hasNext()) {
+                Tuple t = it.next();
+                ntups++;
+                numPages = Math.max(t.getRecordId().getPageId().getPageNumber(), numPages);
+                for (int i = 0; i < len; i++) {
+                    Field f = t.getField(i);
+                    if (f instanceof IntField) {
+                        minArr[i] = Math.min(minArr[i], ((IntField) f).getValue());
+                        maxArr[i] = Math.max(maxArr[i], ((IntField) f).getValue());
+                    }
+                }
+            }
+            it.rewind();
+
+            for (int i = 0; i < len; i++) {
+                Type fieldType = td.getFieldType(i);
+                Stat stat;
+                switch (fieldType) {
+                    case INT_TYPE:
+                        IntHistogram ihist = new IntHistogram(NUM_HIST_BINS, minArr[i], maxArr[i]);
+                        stat = new Stat(Type.INT_TYPE, ihist, null);
+                        statArr[i] = stat;
+                        break;
+                    case STRING_TYPE:
+                        StringHistogram shist = new StringHistogram(NUM_HIST_BINS);
+                        stat = new Stat(Type.INT_TYPE, null, shist);
+                        statArr[i] = stat;
+                        break;
+                }
+            }
+
+            while (it.hasNext()) {
+                Tuple t = it.next();
+                for (int i = 0; i < len; i++) {
+                    Field f = t.getField(i);
+                    if (f instanceof IntField) {
+                        int v = ((IntField) f).getValue();
+                        statArr[i].ihist.addValue(v);
+                    } else if (f instanceof StringField) {
+                        String s = ((StringField) f).getValue();
+                        statArr[i].shist.addValue(s);
+                    }
+                }
+            }
+
+            it.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /**
      * Estimates the cost of sequentially scanning the file, given that the cost
      * to read a page is costPerPageIO. You can assume that there are no seeks
      * and that no pages are in the buffer pool.
-     * 
+     *
      * Also, assume that your hard drive can only read entire pages at once, so
      * if the last page of the table only has one tuple on it, it's just as
      * expensive to read as a full page. (Most real hard drives can't
      * efficiently address regions smaller than a page at a time.)
-     * 
+     *
      * @return The estimated cost of scanning the table.
      */
     public double estimateScanCost() {
         // some code goes here
-        return 0;
+        return numPages * ioCostPerPage;
+//        return 0;
     }
 
     /**
@@ -115,7 +197,8 @@ public class TableStats {
      */
     public int estimateTableCardinality(double selectivityFactor) {
         // some code goes here
-        return 0;
+        return (int) (ntups * selectivityFactor);
+//        return 0;
     }
 
     /**
@@ -148,7 +231,17 @@ public class TableStats {
      */
     public double estimateSelectivity(int field, Predicate.Op op, Field constant) {
         // some code goes here
-        return 1.0;
+        Type fieldType = tupleDesc.getFieldType(field);
+        double res = 0;
+        switch (fieldType) {
+            case INT_TYPE:
+                res = statArr[field].ihist.estimateSelectivity(op, ((IntField) constant).getValue());
+                break;
+            case STRING_TYPE:
+                res = statArr[field].shist.estimateSelectivity(op, ((StringField) constant).getValue());
+                break;
+        }
+        return res;
     }
 
     /**

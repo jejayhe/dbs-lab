@@ -111,7 +111,8 @@ public class JoinOptimizer {
             // HINT: You may need to use the variable "j" if you implemented
             // a join algorithm that's more complicated than a basic
             // nested-loops join.
-            return -1.0;
+            return cost1 + card1 * cost2 + card1 * card2;
+//            return -1.0;
         }
     }
 
@@ -157,7 +158,24 @@ public class JoinOptimizer {
             Map<String, Integer> tableAliasToId) {
         int card = 1;
         // some code goes here
-        return card <= 0 ? 1 : card;
+        switch (joinOp) {
+            case EQUALS:
+                if (t1pkey || t2pkey) {
+                    return Math.min(card1, card2);
+                } else {
+                    return Math.max(card1, card2);
+                }
+            case LESS_THAN:
+            case LESS_THAN_OR_EQ:
+            case GREATER_THAN:
+            case GREATER_THAN_OR_EQ:
+                return card1 * card2 * 3 / 10;
+            case NOT_EQUALS:
+                return card1 * card2;
+            case LIKE:
+                return card1 * card2;
+        }
+        return 0;
     }
 
     /**
@@ -221,7 +239,37 @@ public class JoinOptimizer {
 
         // some code goes here
         //Replace the following
-        return joins;
+        PlanCache pc = new PlanCache();
+        int n = joins.size();
+        Set<LogicalJoinNode> ansKey = null;
+        for (int i = 1; i <= n; i++) {
+            // find all optjoin for every length i subsets
+            Set<Set<LogicalJoinNode>> lengthISubsets = enumerateSubsets(joins, i);
+            for (Set<LogicalJoinNode> lengthISubset : lengthISubsets) {
+                if (lengthISubset.size() == n) {
+                    ansKey = lengthISubset;
+                }
+                // find optjoin for this paticular node subset.
+                double bestCostSoFar = Double.MAX_VALUE;
+                CostCard bestPlan = null;
+                for (LogicalJoinNode joinToRemove : lengthISubset) {
+                    CostCard cc = computeCostAndCardOfSubplan(stats, filterSelectivities, joinToRemove,
+                            lengthISubset, bestCostSoFar, pc);
+                    if (bestPlan == null) {
+                        bestPlan = cc;
+                    } else {
+                        if (cc != null && bestPlan.cost > cc.cost) {
+                            bestPlan = cc;
+                        }
+                    }
+                }
+                if (bestPlan != null) {
+                    pc.addPlan(lengthISubset, bestPlan.cost, bestPlan.card, bestPlan.plan);
+                }
+            }
+        }
+
+        return pc.getOrder(ansKey);
     }
 
     // ===================== Private Methods =================================
