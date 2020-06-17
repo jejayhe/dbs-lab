@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>
  * Provides a set of methods that can be used to access these variables from
  * anywhere.
- * 
+ *
  * @Threadsafe
  */
 public class Database {
@@ -21,9 +21,12 @@ public class Database {
     private final static String LOGFILENAME = "log";
     private final LogFile _logfile;
 
+    private static LockManager _lockmanager;
+
     private Database() {
         _catalog = new Catalog();
         _bufferpool = new BufferPool(BufferPool.DEFAULT_PAGES);
+        _lockmanager = new LockManager();
         LogFile tmp = null;
         try {
             tmp = new LogFile(new File(LOGFILENAME));
@@ -35,19 +38,29 @@ public class Database {
         // startControllerThread();
     }
 
-    /** Return the log file of the static Database instance */
+    /**
+     * Return the log file of the static Database instance
+     */
     public static LogFile getLogFile() {
         return _instance.get()._logfile;
     }
 
-    /** Return the buffer pool of the static Database instance */
+    /**
+     * Return the buffer pool of the static Database instance
+     */
     public static BufferPool getBufferPool() {
         return _instance.get()._bufferpool;
     }
 
-    /** Return the catalog of the static Database instance */
+    /**
+     * Return the catalog of the static Database instance
+     */
     public static Catalog getCatalog() {
         return _instance.get()._catalog;
+    }
+
+    public static LockManager getLockManager() {
+        return _instance.get()._lockmanager;
     }
 
     /**
@@ -55,7 +68,9 @@ public class Database {
      * return it
      */
     public static BufferPool resetBufferPool(int pages) {
-        java.lang.reflect.Field bufferPoolF=null;
+        // for testing purpose
+        _lockmanager = new LockManager();
+        java.lang.reflect.Field bufferPoolF = null;
         try {
             bufferPoolF = Database.class.getDeclaredField("_bufferpool");
             bufferPoolF.setAccessible(true);

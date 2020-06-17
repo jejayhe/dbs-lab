@@ -283,12 +283,22 @@ public class HeapPage implements Page, Iterator<Tuple> {
 //        tupleList.remove(t);
     }
 
+    public boolean verifyTupleOnPage(Tuple t) {
+        // some code goes here
+        // not necessary for lab1
+        if (!t.getTupleDesc().equals(td) || getNumEmptySlots() == 0) {
+            return false;
+        }
+        return true;
+    }
+
     /**
      * Adds the specified tuple to the page;  the tuple should be updated to reflect
-     *  that it is now stored on this page.
-     * @throws DbException if the page is full (no empty slots) or tupledesc
-     *         is mismatch.
+     * that it is now stored on this page.
+     *
      * @param t The tuple to add.
+     * @throws DbException if the page is full (no empty slots) or tupledesc
+     *                     is mismatch.
      */
     public void insertTuple(Tuple t) throws DbException {
         // some code goes here

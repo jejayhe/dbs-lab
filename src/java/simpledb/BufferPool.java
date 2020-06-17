@@ -1,5 +1,6 @@
 package simpledb;
 
+import javax.xml.crypto.Data;
 import java.io.*;
 
 import java.util.ArrayList;
@@ -88,7 +89,9 @@ public class BufferPool {
      */
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
-        // some code goes here
+        // acquire lock first
+        Database.getLockManager().acquire(tid, pid, perm);
+        // other logic
         if (bPageMap.containsKey(pid)) {
             LRUCacheGet(pid);
             return bPageMap.get(pid).page;
@@ -117,6 +120,7 @@ public class BufferPool {
     public  void releasePage(TransactionId tid, PageId pid) {
         // some code goes here
         // not necessary for lab1|lab2
+        Database.getLockManager().release(tid, pid);
     }
 
     /**
@@ -246,6 +250,7 @@ public class BufferPool {
         Database.getCatalog().getDatabaseFile(pid.getTableId()).writePage(p);
         Debug.log("mark page clean");
         p.markDirty(false, null);
+
     }
 
     /** Write all pages of the specified transaction to disk.
@@ -253,6 +258,7 @@ public class BufferPool {
     public synchronized  void flushPages(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+
     }
 
     /**
