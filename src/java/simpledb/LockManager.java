@@ -103,7 +103,7 @@ public class LockManager {
     }
 
     public void acquire(TransactionId tid, PageId pid, Permissions perm) {
-        Debug.log("acquire tid:" + tid + " pid:" + pid + " perm:" + perm);
+//        Debug.log("acquire tid:" + tid + " pid:" + pid + " perm:" + perm);
         PageLock pageLock = null;
         if (!pageLockMap.containsKey(pid)) {
             pageLock = new PageLock(pid);
@@ -115,20 +115,20 @@ public class LockManager {
         }
         if (perm == Permissions.READ_WRITE) {
             pageLock.WLock(tid);
-            if (txRelatedPages.containsKey(tid)) {
-                txRelatedPages.get(tid).add(pid);
-            } else {
-                txRelatedPages.put(tid, new HashSet<PageId>() {{
-                    add(pid);
-                }});
-            }
         } else {
             pageLock.RLock(tid);
+        }
+        if (txRelatedPages.containsKey(tid)) {
+            txRelatedPages.get(tid).add(pid);
+        } else {
+            txRelatedPages.put(tid, new HashSet<PageId>() {{
+                add(pid);
+            }});
         }
     }
 
     public void release(TransactionId tid, PageId pid) {
-        Debug.log("release tid:" + tid + " pid:" + pid);
+//        Debug.log("release tid:" + tid + " pid:" + pid);
         PageLock pageLock = pageLockMap.getOrDefault(pid, null);
         if (pageLock == null) {
             return;
@@ -139,11 +139,21 @@ public class LockManager {
     }
 
     public void unlockRead(TransactionId tid, PageId pid) {
-        Debug.log("unlockread tid:" + tid + " pid:" + pid);
+//        Debug.log("unlockread tid:" + tid + " pid:" + pid);
         PageLock pageLock = pageLockMap.getOrDefault(pid, null);
         if (pageLock != null) {
             pageLock.UnlockRead(tid);
             txRelatedPages.get(tid).remove(pid);
+        }
+    }
+
+    public void releaseAll(TransactionId tid) {
+        if (!txRelatedPages.containsKey(tid)) return;
+        HashSet<PageId> relatedPageSet = (HashSet<PageId>) txRelatedPages.get(tid).clone();
+        Debug.log("releasing........all..... relatedPageSet" + relatedPageSet.toString());
+        for (PageId pid : relatedPageSet) {
+            Debug.log("releasing............. pid" + pid);
+            release(tid, pid);
         }
     }
 

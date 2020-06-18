@@ -23,7 +23,7 @@ public class HeapPage implements Page, Iterator<Tuple> {
 
     //    private LinkedList<Tuple> tupleList = new LinkedList<Tuple>();
     private boolean dirty = false;
-    private TransactionId dirtyTid;
+    private TransactionId dirtyTid = null;
 
     /**
      * Create a HeapPage from a set of bytes of data read from disk.
@@ -328,6 +328,7 @@ public class HeapPage implements Page, Iterator<Tuple> {
     public void markDirty(boolean dirty, TransactionId tid) {
         // some code goes here
         // not necessary for lab1
+        Database.getBufferPool().markDirtyMap(dirty, tid, pid);
         this.dirty = dirty;
         this.dirtyTid = tid;
     }
@@ -402,13 +403,13 @@ public class HeapPage implements Page, Iterator<Tuple> {
     private int cur_i = -1;
 
     public boolean hasNext() {
-        Debug.log("[HeapPage.hasNext] next = " + next + " cur_i = " + cur_i);
+//        Debug.log("[HeapPage.hasNext] next = " + next + " cur_i = " + cur_i);
         if (next == null) next = readNext();
         return next != null;
     }
 
     public Tuple next() {
-        Debug.log("[HeapPage.next] next = " + next + " cur_i = " + cur_i);
+//        Debug.log("[HeapPage.next] next = " + next + " cur_i = " + cur_i);
         if (next == null) {
             next = readNext();
             if (next == null) throw new NoSuchElementException();
@@ -424,7 +425,7 @@ public class HeapPage implements Page, Iterator<Tuple> {
 //        cur_i++;
         while (i < numSlots) {
             if (isSlotUsed(i)) {
-                Debug.log("succefully read slot " + i);
+//                Debug.log("succefully read slot " + i);
                 cur_i = i;
                 return tuples[i];
             }

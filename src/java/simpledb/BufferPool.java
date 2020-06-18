@@ -3,9 +3,7 @@ package simpledb;
 import javax.xml.crypto.Data;
 import java.io.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -20,20 +18,26 @@ import java.util.concurrent.ConcurrentHashMap;
  * @Threadsafe, all fields are final
  */
 public class BufferPool {
+    private Page page;
 
-    public static class BufferPage {
-        public Page page;
-        public Permissions perm;
+    private HashMap<PageId, Page> bPageMap = new HashMap<PageId, Page>();
+    private int bufSize;
+    private LinkedHashSet<PageId> LRUCache = new LinkedHashSet<>();
+    public HashMap<TransactionId, HashSet<PageId>> dirtyMap = new HashMap<>();
 
-        public BufferPage(Page page, Permissions perm) {
-            this.page = page;
-            this.perm = perm;
+    public void markDirtyMap(boolean dirty, TransactionId tid, PageId pid) {
+        if (dirty) {
+            if (!dirtyMap.containsKey(tid)) {
+                dirtyMap.put(tid, new HashSet<PageId>());
+            }
+            dirtyMap.get(tid).add(pid);
+        } else {
+            if (dirtyMap.containsKey(tid)) {
+                dirtyMap.get(tid).remove(pid);
+            }
         }
     }
 
-    private HashMap<PageId, BufferPage> bPageMap = new HashMap<PageId, BufferPage>();
-    private int bufSize;
-    private LinkedHashSet<PageId> LRUCache = new LinkedHashSet<>();
     /**
      * Bytes per page, including header.
      */
@@ -94,18 +98,29 @@ public class BufferPool {
         // other logic
         if (bPageMap.containsKey(pid)) {
             LRUCacheGet(pid);
-            return bPageMap.get(pid).page;
+            return bPageMap.get(pid);
         } else {
             if (bPageMap.size() >= bufSize) {
                 evictPage();
             }
             DbFile dbfile = Database.getCatalog().getDatabaseFile(pid.getTableId());
-            BufferPage bPage = new BufferPage(dbfile.readPage(pid), perm);
+            Page bPage = dbfile.readPage(pid);
             bPageMap.put(pid, bPage);
             LRUCache.add(pid);
-            return bPage.page;
+            return bPage;
         }
 //        return null;
+    }
+
+    public void revertPages(TransactionId tid) {
+        if (!dirtyMap.containsKey(tid)) return;
+        for (PageId pid : dirtyMap.get(tid)) {
+            DbFile dbfile = Database.getCatalog().getDatabaseFile(pid.getTableId());
+            Page cleanPage = dbfile.readPage(pid);
+            bPageMap.put(pid, cleanPage);
+
+        }
+        dirtyMap.remove(tid);
     }
 
     /**
@@ -131,6 +146,7 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+        transactionComplete(tid, true);
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
@@ -151,6 +167,12 @@ public class BufferPool {
         throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+        if (commit) {
+            flushPages(tid);
+        } else {
+            revertPages(tid);
+        }
+        Database.getLockManager().releaseAll(tid);
     }
 
     /**
@@ -175,11 +197,15 @@ public class BufferPool {
         DbFile dbFile = Database.getCatalog().getDatabaseFile(tableId);
         ArrayList<Page> dirtyPages = dbFile.insertTuple(tid, t);
         for (Page p : dirtyPages) {
-            p.markDirty(true, tid);
-            bPageMap.put(p.getId(), new BufferPage(p, null));
+//            p.markDirty(true, tid);
+//            bPageMap.put(p.getId(), p);
+//            if (!dirtyMap.containsKey(tid)) {
+//                dirtyMap.put(tid, new HashSet<>());
+//            }
+//            dirtyMap.get(tid).add(p.getId());
             LRUCacheGet(p.getId());
         }
-
+        Debug.log("dirtyMap for tid " + tid + " is now " + dirtyMap.get(tid).toString());
     }
 
     /**
@@ -201,8 +227,12 @@ public class BufferPool {
         // not necessary for lab1
         ArrayList<Page> dirtyPages = Database.getCatalog().getDatabaseFile(t.getRecordId().getPageId().getTableId()).deleteTuple(tid, t);
         for (Page p : dirtyPages) {
-            p.markDirty(true, tid);
+//            p.markDirty(true, tid);
             LRUCacheGet(p.getId());
+//            if (!dirtyMap.containsKey(tid)) {
+//                dirtyMap.put(tid, new HashSet<>());
+//            }
+//            dirtyMap.get(tid).add(p.getId());
         }
     }
 
@@ -214,8 +244,7 @@ public class BufferPool {
     public synchronized void flushAllPages() throws IOException {
         // some code goes here
         // not necessary for lab1
-        bPageMap.forEach((pid, v) -> {
-            Page p = v.page;
+        bPageMap.forEach((pid, p) -> {
             if (p.isDirty() != null) {
                 try {
                     flushPage(pid);
@@ -246,7 +275,7 @@ public class BufferPool {
     private synchronized  void flushPage(PageId pid) throws IOException {
         // some code goes here
         // not necessary for lab1
-        Page p = bPageMap.get(pid).page;
+        Page p = bPageMap.get(pid);
         Database.getCatalog().getDatabaseFile(pid.getTableId()).writePage(p);
         Debug.log("mark page clean");
         p.markDirty(false, null);
@@ -258,7 +287,14 @@ public class BufferPool {
     public synchronized  void flushPages(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
-
+        Debug.log("flushing pages for tid " + tid);
+        if (dirtyMap.containsKey(tid)) {
+            for (PageId pid : dirtyMap.get(tid)) {
+                Debug.log("flushing page " + pid + " tid " + tid);
+                flushPage(pid);
+            }
+            dirtyMap.remove(tid);
+        }
     }
 
     /**
@@ -268,7 +304,16 @@ public class BufferPool {
     private synchronized  void evictPage() throws DbException {
         // some code goes here
         // not necessary for lab1
-        PageId pid = LRUCache.iterator().next();
+        Iterator<PageId> pIt = LRUCache.iterator();
+        PageId pid = pIt.next();
+        while (pid != null) {
+            if (bPageMap.get(pid).isDirty() != null) {
+                pid = pIt.next();
+            } else {
+                break;
+            }
+        }
+        if (pid == null) throw new DbException("all dirty");
         try {
             flushPage(pid);
             LRUCache.remove(pid);
