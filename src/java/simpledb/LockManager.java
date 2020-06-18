@@ -25,6 +25,8 @@ public class LockManager {
             if (holdLock == null) {
                 rwl.readLock().lock();
                 txLockMap.put(tid, PageLockType.READ);
+//                Debug.log("setting tid " + tid + " type " + PageLockType.READ);
+//                Debug.log("readcount " + rwl.getReadLockCount() + " write count " + rwl.isWriteLocked());
             } else if (holdLock == PageLockType.READ) {
                 // pass
             } else {
@@ -38,9 +40,20 @@ public class LockManager {
                 rwl.writeLock().lock();
                 txLockMap.put(tid, PageLockType.WRITE);
             } else if (holdLock == PageLockType.READ) {
+                Debug.log("code reached 1");
+                while (!(rwl.getReadLockCount() == 1 && !rwl.isWriteLocked()))
 //                synchronized (this){
-                rwl.readLock().unlock();
+                {
+                    try {
+                        Debug.log("readcount " + rwl.getReadLockCount() + " write count " + rwl.isWriteLocked());
+                        Thread.sleep(50);
+                    } catch (InterruptedException e) {
+                    }
+                }
+                Debug.log("code reached 2");
+                rwl = new ReentrantReadWriteLock();
                 rwl.writeLock().lock();
+                Debug.log("code reached 3");
                 txLockMap.put(tid, PageLockType.WRITE);
 //                }
             } else {

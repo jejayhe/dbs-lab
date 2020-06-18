@@ -153,6 +153,10 @@ public class LockingTest extends TestUtil.CreateHeapFile {
   /**
    * Unit test for BufferPool.getPage() assuming locking.
    * Attempt lock upgrade.
+   * <p>
+   * ################### I think this test is stupid. a transaction in two different threads, one acquire read lock
+   * ################### another needs to upgrade the lock to a write lock.
+   * ###################
    */
   @Test public void lockUpgrade() throws Exception {
     metaLockTester(tid1, p0, Permissions.READ_ONLY,
@@ -166,9 +170,10 @@ public class LockingTest extends TestUtil.CreateHeapFile {
    * A single transaction should be able to acquire a read lock after it
    * already has a write lock.
    */
-  @Test public void acquireWriteAndReadLocks() throws Exception {
+  @Test
+  public void acquireWriteAndReadLocks() throws Exception {
     metaLockTester(tid1, p0, Permissions.READ_WRITE,
-                   tid1, p0, Permissions.READ_ONLY, true);
+            tid1, p0, Permissions.READ_ONLY, true);
   }
 
   /**
